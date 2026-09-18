@@ -1,0 +1,14 @@
+{
+  "video": { "width": 1280, "height": 720, "frameRate": 30 },
+  "tracking": {
+    "numHands": 2,
+    "minHandDetectionConfidence": 0.5,
+    "minHandPresenceConfidence": 0.5,
+    "minTrackingConfidence": 0.5,
+    "delegate": "GPU"
+  },
+  "overlay": { "trailLength": 40, "lineWidth": 3, "landmarkRadius": 4 },
+  "colors": { "left": "#4fd1c5", "right": "#f6ad55" },
+  "peer": { "idPrefix": "ht-", "codeLength": 6, "codeChars": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" },
+  "httpsPort": 3000
+}

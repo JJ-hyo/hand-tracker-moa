@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hand Tracker</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14181d;
+    --line: #232a32;
+    --text: #e6e9ee;
+    --muted: #8a94a3;
+    --accent: #4fd1c5;
+    --accent-2: #f6ad55;
+    --danger: #fc8181;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    padding: 16px; min-height: 100vh;
+  }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  header .status { font-size: 12px; color: var(--muted); }
+  header .status b { color: var(--accent); font-weight: 600; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  .stage {
+    position: relative; background: #000; border-radius: 12px; overflow: hidden;
+    aspect-ratio: 16 / 9; max-width: 100%; border: 1px solid var(--line);
+  }
+  .stage video, .stage canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+  }
+  .stage video { transform: scaleX(-1); }
+  .stage canvas { pointer-events: none; }
+  .stage .placeholder {
+    position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted);
+    text-align: center; padding: 24px;
+  }
+  .stage .placeholder button { margin-top: 12px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  select, button {
+    width: 100%; background: #0f1317; color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: inherit;
+  }
+  button { cursor: pointer; background: var(--accent); color: #062421; border-color: transparent; font-weight: 600; }
+  button.secondary { background: #0f1317; color: var(--text); border-color: var(--line); font-weight: 500; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .toggle input { accent-color: var(--accent); }
+
+  .hands { display: flex; flex-direction: column; gap: 8px; }
+  .hand {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #0f1317;
+  }
+  .hand .title { display: flex; justify-content: space-between; align-items: baseline; }
+  .hand .title .side { font-weight: 600; }
+  .hand .title .conf { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hand .gesture { font-size: 22px; font-weight: 700; margin: 4px 0 2px; letter-spacing: -0.02em; }
+  .hand .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  .log { font-size: 11px; color: var(--muted); max-height: 140px; overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  .err { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Hand Tracker</h1>
+  <span class="status" id="status">모델 로딩 중…</span>
+</header>
+
+<div class="layout">
+  <div class="stage" id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="placeholder" id="placeholder">
+      <div>
+        카메라를 연결하면 손 위에 관절이 그려집니다.<br/>
+        <small>브라우저에서 카메라 권한을 허용해 주세요.</small>
+        <button id="startBtn" disabled>카메라 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div>
+      <h2>영상 소스</h2>
+      <label for="cameraSelect">카메라</label>
+      <select id="cameraSelect"><option>카메라 검색 중…</option></select>
+      <div class="row" style="margin-top:8px">
+        <button id="switchBtn" class="secondary" disabled>전환</button>
+        <button id="stopBtn" class="secondary" disabled>정지</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>폰 / 외부 기기 연결</h2>
+      <button id="pairBtn" class="secondary">폰 연결하기</button>
+      <div id="pairBox" hidden style="margin-top:10px; text-align:center">
+        <div style="background:#fff; padding:8px; border-radius:10px; display:inline-block" id="qr"></div>
+        <div style="font-size:26px; font-weight:700; letter-spacing:.15em; margin-top:8px" id="pairCode"></div>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px" id="pairHint">폰으로 QR을 찍거나, 폰에서 아래 주소를 열고 코드를 입력하세요</div>
+        <div style="margin-top:8px">
+          <label for="baseUrl">폰에서 접속할 주소</label>
+          <input id="baseUrl" style="width:100%; background:#0f1317; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px" />
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2>표시</h2>
+      <label class="toggle"><input type="checkbox" id="mirror" checked /> 좌우 반전 (셀피 모드)</label>
+      <label class="toggle"><input type="checkbox" id="showSkeleton" checked /> 관절 그리기</label>
+      <label class="toggle"><input type="checkbox" id="showTrail" /> 손가락 끝 궤적</label>
+    </div>
+
+    <div>
+      <h2>인식된 손</h2>
+      <div class="hands" id="hands"><div class="empty">아직 없음</div></div>
+    </div>
+
+    <div>
+      <h2>로그</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="module">
+// ---------------------------------------------------------------------------
+// MediaPipe Tasks Vision — Hand Landmarker (GPU delegate, VIDEO mode)
+// ---------------------------------------------------------------------------
+import {
+  HandLandmarker,
+  FilesetResolver,
+  DrawingUtils,
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const $ = (id) => document.getElementById(id);
+const video = $("video");
+const canvas = $("overlay");
+const ctx = canvas.getContext("2d");
+const statusEl = $("status");
+const logEl = $("log");
+const handsEl = $("hands");
+
+function log(msg, isErr = false) {
+  const line = document.createElement("div");
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  if (isErr) line.className = "err";
+  logEl.prepend(line);
+  if (isErr) console.error(msg); else console.log(msg);
+}
+
+// ---------------------------------------------------------------------------
+// 1) Video source layer
+//    지금은 로컬 카메라(getUserMedia)만 구현. 나중에 글라스/폰에서 WebRTC로 받은
+//    MediaStream을 attachStream()에 그대로 넘기면 아래 트래킹 파이프라인은 그대로 동작함.
+// ---------------------------------------------------------------------------
+let currentStream = null;
+
+async function attachStream(stream, { remote = false } = {}) {
+  if (currentStream) currentStream.getTracks().forEach((t) => t.stop());
+  currentStream = stream;
+  // 외부 기기(폰/글라스) 영상은 뒷카메라 시점이라 반전하지 않음
+  $("mirror").checked = !remote;
+  video.srcObject = stream;
+  await new Promise((res) => (video.onloadedmetadata = res));
+  await video.play();
+  $("placeholder").hidden = true;
+  $("stopBtn").disabled = false;
+  $("switchBtn").disabled = false;
+  const track = stream.getVideoTracks()[0];
+  const s = track.getSettings();
+  log(`소스 연결: ${track.label || "unknown"} ${s.width}x${s.height}@${Math.round(s.frameRate || 0)}fps`);
+  startLoop();
+}
+
+async function startCamera(deviceId) {
+  const constraints = {
+    audio: false,
+    video: deviceId
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+  };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    await attachStream(stream);
+    await refreshCameraList(); // 권한을 얻은 뒤에야 label이 채워짐
+  } catch (e) {
+    log(`카메라 오류: ${e.name} — ${e.message}`, true);
+    statusEl.textContent = "카메라 접근 실패";
+  }
+}
+
+function stopCamera() {
+  if (currentStream) currentStream.getTracks().forEach((t) => t.stop());
+  currentStream = null;
+  video.srcObject = null;
+  stopLoop();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  $("placeholder").hidden = false;
+  $("stopBtn").disabled = true;
+  $("switchBtn").disabled = true;
+  renderHands([]);
+  log("소스 정지");
+}
+
+async function refreshCameraList() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter((d) => d.kind === "videoinput");
+  const sel = $("cameraSelect");
+  const prev = currentStream?.getVideoTracks()[0]?.getSettings().deviceId;
+  sel.innerHTML = "";
+  cams.forEach((c, i) => {
+    const o = document.createElement("option");
+    o.value = c.deviceId;
+    o.textContent = c.label || `카메라 ${i + 1}`;
+    if (c.deviceId === prev) o.selected = true;
+    sel.appendChild(o);
+  });
+  if (!cams.length) sel.innerHTML = "<option>카메라 없음</option>";
+}
+
+// --- 1b) Remote source: 폰/글라스에서 WebRTC(PeerJS)로 영상 수신 -------------
+let peer = null;
+let pairCode = null;
+
+function makeCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 헷갈리는 0/O/1/I 제외
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => chars[n % chars.length]).join("");
+}
+
+function renderQr() {
+  const base = $("baseUrl").value.trim().replace(/\/+$/, "");
+  const url = `${base}/sender.html?id=${pairCode}`;
+  $("qr").innerHTML = "";
+  new QRCode($("qr"), { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+  const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1)/.test(base);
+  $("pairHint").innerHTML = isLocal
+    ? `<span class="err">localhost 주소는 폰에서 열 수 없어요.</span> 위 입력칸에 PC의 IP(예: http://192.168.0.10:8080) 또는 터널/배포 주소를 넣으세요.`
+    : `폰으로 QR을 찍거나, 폰에서 <code>${base}/sender.html</code> 을 열고 코드를 입력하세요`;
+}
+
+function startPairing() {
+  if (peer) { peer.destroy(); peer = null; }
+  pairCode = makeCode();
+  $("pairCode").textContent = pairCode;
+  $("pairBox").hidden = false;
+  if (!$("baseUrl").value) {
+    $("baseUrl").value = location.origin;
+    // server.js가 알려주는 LAN HTTPS 주소가 있으면 그걸 기본값으로 (폰에서 접속 가능한 주소)
+    fetch("/lan.json").then((r) => r.ok ? r.json() : null).then((d) => {
+      if (d?.urls?.length) { $("baseUrl").value = d.urls[0]; renderQr(); }
+    }).catch(() => {});
+  }
+  renderQr();
+  $("pairBtn").textContent = "코드 새로 만들기";
+
+  peer = new Peer(`ht-${pairCode}`);
+  peer.on("open", () => log(`페어링 대기: 코드 ${pairCode}`));
+  peer.on("call", (call) => {
+    log(`기기에서 연결 요청 (${call.peer})`);
+    call.answer(); // 뷰어는 영상을 보내지 않음
+    call.on("stream", (remoteStream) => {
+      attachStream(remoteStream, { remote: true });
+      statusEl.innerHTML = "원격 기기 연결됨 · 추적 시작";
+    });
+    call.on("close", () => { log("기기 연결 종료"); stopCamera(); });
+    call.on("error", (e) => log(`통화 오류: ${e.type || e.message}`, true));
+  });
+  peer.on("error", (e) => {
+    if (e.type === "unavailable-id") { log("코드 충돌, 새로 생성"); startPairing(); return; }
+    log(`PeerJS 오류: ${e.type}`, true);
+  });
+}
+
+$("pairBtn").onclick = startPairing;
+$("baseUrl").addEventListener("input", () => pairCode && renderQr());
+
+// ---------------------------------------------------------------------------
+// 2) Tracking layer
+// ---------------------------------------------------------------------------
+let landmarker = null;
+let drawer = null;
+
+async function loadModel() {
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+  landmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate: "GPU",
+    },
+    runningMode: "VIDEO",
+    numHands: 2,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+  drawer = new DrawingUtils(ctx);
+  statusEl.innerHTML = "모델 준비 완료 · <b>카메라를 시작하세요</b>";
+  $("startBtn").disabled = false;
+  log("HandLandmarker 로드 완료 (GPU)");
+}
+
+// 간단한 제스처 분류 — 21개 랜드마크 기하로 판단
+// 랜드마크 인덱스: 0 손목, 4 엄지끝, 8 검지끝, 12 중지끝, 16 약지끝, 20 소지끝
+const TIPS = [8, 12, 16, 20];
+const PIPS = [6, 10, 14, 18];
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function classify(lm) {
+  const wrist = lm[0];
+  const palmSize = dist(wrist, lm[9]) || 1e-6;
+  // 손가락 펴짐: 끝이 두번째 관절보다 손목에서 멀면 펴진 것
+  const extended = TIPS.map((t, i) => dist(lm[t], wrist) > dist(lm[PIPS[i]], wrist) * 1.15);
+  const thumbExt = dist(lm[4], lm[17]) > dist(lm[3], lm[17]) * 1.1;
+  const count = extended.filter(Boolean).length + (thumbExt ? 1 : 0);
+  const pinch = dist(lm[4], lm[8]) / palmSize;
+
+  if (pinch < 0.25) return { name: "Pinch", emoji: "🤏", detail: `핀치 ${(pinch * 100).toFixed(0)}%` };
+  if (count === 0) return { name: "Fist", emoji: "✊", detail: "주먹" };
+  if (count >= 5) return { name: "Open", emoji: "🖐", detail: "펼침" };
+  if (extended[0] && !extended[1] && !extended[2] && !extended[3]) return { name: "Point", emoji: "☝️", detail: "가리킴" };
+  if (extended[0] && extended[1] && !extended[2] && !extended[3]) return { name: "Peace", emoji: "✌️", detail: "V" };
+  if (thumbExt && count === 1) return { name: "Thumbs", emoji: "👍", detail: "엄지" };
+  return { name: `${count} fingers`, emoji: "✋", detail: `손가락 ${count}개` };
+}
+
+// ---------------------------------------------------------------------------
+// 3) Render loop
+// ---------------------------------------------------------------------------
+let rafId = null;
+let lastVideoTime = -1;
+let fpsFrames = 0, fpsTime = performance.now(), fps = 0;
+const trails = { Left: [], Right: [] };
+const TRAIL_LEN = 40;
+
+function resizeCanvas() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (w && (canvas.width !== w || canvas.height !== h)) {
+    canvas.width = w; canvas.height = h;
+  }
+}
+
+function startLoop() { if (rafId == null) rafId = requestAnimationFrame(tick); }
+function stopLoop() { if (rafId != null) cancelAnimationFrame(rafId); rafId = null; lastVideoTime = -1; }
+
+function tick() {
+  rafId = requestAnimationFrame(tick);
+  if (!landmarker || video.readyState < 2) return;
+  resizeCanvas();
+
+  const mirror = $("mirror").checked;
+  video.style.transform = mirror ? "scaleX(-1)" : "none";
+
+  let result = null;
+  if (video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    result = landmarker.detectForVideo(video, performance.now());
+    fpsFrames++;
+    const now = performance.now();
+    if (now - fpsTime >= 1000) { fps = fpsFrames; fpsFrames = 0; fpsTime = now; }
+  }
+  if (!result) return;
+
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (mirror) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+
+  const hands = [];
+  result.landmarks.forEach((lm, i) => {
+    // MediaPipe의 handedness는 "카메라가 본" 기준 → 미러 모드면 실제 손 기준으로 뒤집음
+    let side = result.handedness[i]?.[0]?.categoryName ?? "Unknown";
+    const score = result.handedness[i]?.[0]?.score ?? 0;
+    if (mirror && (side === "Left" || side === "Right")) side = side === "Left" ? "Right" : "Left";
+    const color = side === "Left" ? "#4fd1c5" : "#f6ad55";
+
+    if ($("showSkeleton").checked) {
+      drawer.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color, lineWidth: 3 });
+      drawer.drawLandmarks(lm, { color: "#fff", fillColor: color, lineWidth: 1, radius: 4 });
+    }
+
+    if ($("showTrail").checked) {
+      const t = trails[side] ?? (trails[side] = []);
+      t.push({ x: lm[8].x * canvas.width, y: lm[8].y * canvas.height });
+      if (t.length > TRAIL_LEN) t.shift();
+      ctx.beginPath();
+      t.forEach((p, k) => (k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.globalAlpha = 0.7;
+      ctx.stroke(); ctx.globalAlpha = 1;
+    } else {
+      trails.Left.length = 0; trails.Right.length = 0;
+    }
+
+    const g = classify(lm);
+    hands.push({ side, score, gesture: g, index: lm[8] });
+  });
+  ctx.restore();
+
+  // 제스처 라벨은 미러 변환 없이 텍스트가 정방향으로 보이게 별도 그리기
+  hands.forEach((h) => {
+    let x = h.index.x * canvas.width, y = h.index.y * canvas.height;
+    if (mirror) x = canvas.width - x;
+    ctx.font = "bold 28px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText(h.gesture.emoji, x, y - 24);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(h.gesture.emoji, x - 1, y - 25);
+  });
+
+  renderHands(hands);
+  statusEl.innerHTML = `추적 중 · <b>${fps} fps</b> · 손 ${hands.length}개`;
+}
+
+function renderHands(hands) {
+  if (!hands.length) { handsEl.innerHTML = '<div class="empty">아직 없음</div>'; return; }
+  handsEl.innerHTML = hands
+    .map(
+      (h) => `
+      <div class="hand" style="border-color:${h.side === "Left" ? "#4fd1c5" : "#f6ad55"}40">
+        <div class="title">
+          <span class="side">${h.side === "Left" ? "왼손" : h.side === "Right" ? "오른손" : "?"}</span>
+          <span class="conf">신뢰도 ${(h.score * 100).toFixed(0)}%</span>
+        </div>
+        <div class="gesture">${h.gesture.emoji} ${h.gesture.name}</div>
+        <div class="meta">${h.gesture.detail} · 검지 (${h.index.x.toFixed(2)}, ${h.index.y.toFixed(2)})</div>
+      </div>`
+    )
+    .join("");
+}
+
+// ---------------------------------------------------------------------------
+// Wire up
+// ---------------------------------------------------------------------------
+$("startBtn").onclick = () => startCamera($("cameraSelect").value || undefined);
+$("switchBtn").onclick = () => startCamera($("cameraSelect").value);
+$("stopBtn").onclick = stopCamera;
+navigator.mediaDevices?.addEventListener?.("devicechange", refreshCameraList);
+
+if (!navigator.mediaDevices?.getUserMedia) {
+  statusEl.textContent = "이 브라우저는 카메라를 지원하지 않습니다";
+  log("getUserMedia 미지원. HTTPS 또는 localhost에서 열어야 합니다.", true);
+} else {
+  refreshCameraList().catch(() => {});
+  loadModel().catch((e) => {
+    statusEl.textContent = "모델 로딩 실패";
+    log(`모델 로딩 실패: ${e.message}`, true);
+  });
+}
+
+// 나중에 WebRTC 스트림을 붙일 때 사용할 훅
+window.attachStream = attachStream;
+</script>
+</body>
+</html>

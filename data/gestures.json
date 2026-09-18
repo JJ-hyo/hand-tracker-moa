@@ -1,0 +1,14 @@
+{
+  "pinchThreshold": 0.25,
+  "extendRatio": 1.15,
+  "thumbRatio": 1.1,
+  "gestures": {
+    "pinch":  { "name": "Pinch",  "emoji": "🤏", "label": "핀치" },
+    "fist":   { "name": "Fist",   "emoji": "✊", "label": "주먹" },
+    "open":   { "name": "Open",   "emoji": "🖐", "label": "펼침" },
+    "point":  { "name": "Point",  "emoji": "☝️", "label": "가리킴" },
+    "peace":  { "name": "Peace",  "emoji": "✌️", "label": "V" },
+    "thumbs": { "name": "Thumbs", "emoji": "👍", "label": "엄지" },
+    "other":  { "name": "Hand",   "emoji": "✋", "label": "손" }
+  }
+}

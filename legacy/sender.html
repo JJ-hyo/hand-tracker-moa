@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Hand Tracker · 카메라 송신</title>
+<style>
+  :root { --bg:#0b0d10; --panel:#14181d; --line:#232a32; --text:#e6e9ee; --muted:#8a94a3; --accent:#4fd1c5; --danger:#fc8181; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+  .stage { position:relative; background:#000; flex:1; min-height:50vh; }
+  .stage video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .badge { position:absolute; top:12px; left:12px; background:rgba(0,0,0,.6); padding:6px 10px; border-radius:999px; font-size:12px; }
+  .badge b { color:var(--accent); }
+  .badge.err b { color:var(--danger); }
+  .controls { padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom)); background:var(--panel); border-top:1px solid var(--line); display:flex; flex-direction:column; gap:12px; }
+  label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  input, button { width:100%; font:inherit; border-radius:10px; padding:12px; border:1px solid var(--line); background:#0f1317; color:var(--text); }
+  input { text-align:center; letter-spacing:.2em; font-size:20px; text-transform:uppercase; }
+  button { background:var(--accent); color:#062421; font-weight:700; border-color:transparent; }
+  button.secondary { background:#0f1317; color:var(--text); border-color:var(--line); font-weight:500; }
+  button:disabled { opacity:.5; }
+  .row { display:flex; gap:8px; }
+  .hint { font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <video id="preview" autoplay playsinline muted></video>
+  <div class="badge" id="badge">상태: <b>대기</b></div>
+</div>
+
+<div class="controls">
+  <div>
+    <label for="code">연결 코드 (PC 화면에 표시된 6자리)</label>
+    <input id="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC123" />
+  </div>
+  <button id="connectBtn">카메라 켜고 연결</button>
+  <div class="row">
+    <button id="flipBtn" class="secondary" disabled>카메라 전환</button>
+    <button id="stopBtn" class="secondary" disabled>연결 끊기</button>
+  </div>
+  <div class="hint" id="hint">이 화면을 켜둔 채로 두세요. 화면이 꺼지면 영상도 멈춥니다.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const preview = $("preview");
+const badge = $("badge");
+const codeInput = $("code");
+
+let peer = null, call = null, stream = null;
+let facing = "environment"; // 폰 뒷카메라 기본 (글라스 시점과 비슷)
+let wakeLock = null;
+
+function setStatus(text, isErr = false) {
+  badge.innerHTML = `상태: <b>${text}</b>`;
+  badge.classList.toggle("err", isErr);
+}
+
+// URL ?id=ABC123 으로 들어오면 코드 자동 입력 (QR 스캔 경로)
+const urlId = new URLSearchParams(location.search).get("id");
+if (urlId) codeInput.value = urlId.toUpperCase();
+
+async function startCamera() {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+  });
+  preview.srcObject = stream;
+  preview.style.transform = facing === "user" ? "scaleX(-1)" : "none";
+  return stream;
+}
+
+async function connect() {
+  const code = codeInput.value.trim().toUpperCase();
+  if (code.length !== 6) { setStatus("코드 6자리를 입력하세요", true); return; }
+  $("connectBtn").disabled = true;
+
+  try {
+    setStatus("카메라 켜는 중…");
+    await startCamera();
+  } catch (e) {
+    setStatus(`카메라 실패: ${e.name}`, true);
+    $("hint").textContent = location.protocol === "https:" || location.hostname === "localhost"
+      ? "카메라 권한을 허용해 주세요."
+      : "카메라는 HTTPS 주소에서만 켜집니다. PC의 안내에 따라 주소를 확인하세요.";
+    $("connectBtn").disabled = false;
+    return;
+  }
+
+  setStatus("PC에 연결 중…");
+  peer = new Peer(); // 송신 쪽은 랜덤 ID
+  peer.on("open", () => {
+    call = peer.call(`ht-${code}`, stream);
+    if (!call) { setStatus("연결 생성 실패", true); return; }
+    call.on("stream", () => {}); // 뷰어는 영상을 돌려주지 않음
+    call.on("close", () => { setStatus("연결 종료"); cleanup(false); });
+    call.on("error", (e) => setStatus(`오류: ${e.type || e.message}`, true));
+    // PeerJS는 call 성립 시점 이벤트가 따로 없어서 ICE 상태를 직접 감시
+    const watch = setInterval(() => {
+      const pc = call.peerConnection;
+      if (!pc) return;
+      if (pc.connectionState === "connected") { setStatus("송신 중 ✓"); clearInterval(watch); }
+      if (pc.connectionState === "failed") { setStatus("연결 실패 (네트워크)", true); clearInterval(watch); }
+    }, 300);
+  });
+  peer.on("error", (e) => {
+    const msg = e.type === "peer-unavailable" ? "PC에서 '폰 연결'을 먼저 눌러주세요" : `오류: ${e.type}`;
+    setStatus(msg, true);
+    $("connectBtn").disabled = false;
+  });
+  peer.on("disconnected", () => setStatus("서버 연결 끊김", true));
+
+  $("flipBtn").disabled = false;
+  $("stopBtn").disabled = false;
+
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+}
+
+async function flip() {
+  facing = facing === "environment" ? "user" : "environment";
+  const newStream = await startCamera();
+  // 통화 중이면 트랙만 교체 (재연결 없음)
+  const sender = call?.peerConnection?.getSenders().find((s) => s.track?.kind === "video");
+  if (sender) await sender.replaceTrack(newStream.getVideoTracks()[0]);
+}
+
+function cleanup(stopStream = true) {
+  call?.close(); call = null;
+  peer?.destroy(); peer = null;
+  if (stopStream && stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; preview.srcObject = null; }
+  wakeLock?.release?.(); wakeLock = null;
+  $("connectBtn").disabled = false;
+  $("flipBtn").disabled = true;
+  $("stopBtn").disabled = true;
+}
+
+$("connectBtn").onclick = connect;
+$("flipBtn").onclick = () => flip().catch((e) => setStatus(`전환 실패: ${e.name}`, true));
+$("stopBtn").onclick = () => { cleanup(); setStatus("대기"); };
+
+// 탭 복귀 시 wake lock 재요청
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && call) {
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  }
+});
+</script>
+</body>
+</html>

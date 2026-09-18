@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+certificates/
+.cert/
+*.log
+.DS_Store
+.env*
+tsconfig.tsbuildinfo
+next-env.d.ts
