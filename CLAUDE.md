@@ -45,6 +45,7 @@ lib/
   motions/drum.ts       드럼 — 스트라이크 감지, 박자 판정(good/early/late/miss/wrong/extra)
   motions/index.ts      모션 목록 + createMotion()
   metronome.ts          Web Audio 클릭 (모션의 박 시각을 미리 예약)
+  rotateStream.ts       세로 카메라 스트림을 캔버스로 90° 돌려 가로 스트림으로 (폰 회전 잠금 대응)
   usePairing.ts         PeerJS 수신 대기 훅 — Viewer에 붙어 화면 전환에도 살아있음
   tracking.ts           HandLandmarker 로드 / detect 래퍼
   gestures.ts           제스처 분류 (순수 함수)
