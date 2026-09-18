@@ -2,6 +2,8 @@
 
 import PairingBox from "./PairingBox";
 import { Logo, Motif } from "./Brand";
+import MotionPicker from "./MotionPicker";
+import type { MotionId } from "@/lib/motions";
 
 type Camera = { deviceId: string; label: string };
 
@@ -12,6 +14,8 @@ type Props = {
   selectedCam: string;
   onSelectCam: (id: string) => void;
   onStartCamera: () => void;
+  motionId: MotionId;
+  onMotionChange: (id: MotionId) => void;
   pairCode: string | null;
   onNewCode: () => void;
   logs: { t: string; msg: string; err: boolean }[];
@@ -36,6 +40,10 @@ export default function ConnectScreen(p: Props) {
         <h1 className="mt-6 text-[30px] font-semibold leading-none tracking-[-0.02em]">연결하기</h1>
         <p className="mt-2 text-[13px] text-muted">{p.status}</p>
       </header>
+
+      <div className="relative mb-8">
+        <MotionPicker value={p.motionId} onChange={p.onMotionChange} />
+      </div>
 
       <div className="relative grid w-full max-w-[680px] grid-cols-1 gap-4 sm:grid-cols-2">
         {/* 이 기기 카메라 */}

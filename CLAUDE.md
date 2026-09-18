@@ -27,7 +27,7 @@ app/
   page.tsx              PC 뷰어 (Viewer를 ssr:false로 로드)
   sender/page.tsx       폰 송신 (/sender?id=CODE)
   api/lan/route.ts      PC의 LAN 주소 반환 → QR에 넣을 폰 접속 주소
-  dev/overlay/page.tsx  카메라 없이 실루엣 오버레이를 확인하는 개발용 페이지
+  dev/overlay/page.tsx  카메라 없이 실루엣 + 드럼 판정을 시뮬레이션하는 개발용 페이지
   layout.tsx            next/font로 Archivo + JetBrains Mono 로드
   globals.css           DESIGN.md 컬러 토큰(@theme) + 컴포넌트 클래스
 components/
@@ -38,7 +38,13 @@ components/
   Brand.tsx             Logo / Motif — public/brand/ 에셋 래퍼
   PairingBox.tsx        코드 / QR / 접속 주소 UI (순수 표시)
   Sender.tsx            폰 송신 화면
+  MotionPicker.tsx      연결 화면의 모션 선택 칩 (없음 / 드럼)
+  BeatBar.tsx           라이브 화면 박자 바 — 패턴 칸, 진행, 판정 점, 정확도
 lib/
+  motions/types.ts      Motion 인터페이스 + MotionState (UI와 분리된 순수 로직)
+  motions/drum.ts       드럼 — 스트라이크 감지, 박자 판정(good/early/late/miss/wrong/extra)
+  motions/index.ts      모션 목록 + createMotion()
+  metronome.ts          Web Audio 클릭 (모션의 박 시각을 미리 예약)
   usePairing.ts         PeerJS 수신 대기 훅 — Viewer에 붙어 화면 전환에도 살아있음
   tracking.ts           HandLandmarker 로드 / detect 래퍼
   gestures.ts           제스처 분류 (순수 함수)
@@ -47,6 +53,7 @@ lib/
   types.ts
 public/brand/          Motion Archive 로고 + 점무늬 모티프 PNG
 data/
+  motions/drum.json     드럼 정답: bpm, 패턴, 타이밍 허용 범위, 스트라이크 임계값, 피드백/소리 설정
   gestures.json         제스처 이름/이모지/임계값
   settings.json         영상·트래킹·오버레이·컬러·페어링 설정
 legacy/                 전환 전 바닐라 HTML (참고용)
@@ -56,6 +63,8 @@ legacy/                 전환 전 바닐라 HTML (참고용)
 - `<video>`는 한 번만 마운트돼야 하므로 Stage는 항상 렌더하고 ①에서는 투명하게 숨김. PeerJS 대기도 같은 이유로 `usePairing`이 Viewer에 붙어 있음.
 - 영상 파이프라인은 **소스 → 트래킹 → 오버레이** 3층. 소스(로컬 카메라 / WebRTC 원격 / 나중에 글라스)만 바뀌고 `Viewer.attachStream()` 이후는 동일.
 - MediaPipe, PeerJS는 브라우저 전용 → `lib/`에서 동적 `import()`, 페이지는 `dynamic(..., { ssr: false })`.
+- **모션**: 연결 화면에서 고르면 소스가 붙을 때 `Viewer.startMotion()`이 시작. 렌더 루프에서 `motion.update(hands, now)` → `MotionState`를 오버레이(실루엣 색·링 펄스)와 BeatBar가 읽는다. 새 모션은 `lib/motions/`에 클래스 하나 + `index.ts`에 한 줄.
+- 피드백 원칙 (DESIGN.md): 프레임마다 바뀌는 텍스트 없음. 상시(실루엣 색 이징) / 순간(링 펄스) / 누적(박자 바 점 + 최근 8박 정확도) 세 층. 힌트 문구는 2단계 예정.
 - 설정값을 바꿀 땐 코드가 아니라 `data/*.json`을 수정. 실루엣 수치(채움 불투명도, 외곽선, 글로우, 손가락 두께)는 `settings.json > overlay`.
 
 ## 실행

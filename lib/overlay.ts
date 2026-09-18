@@ -4,6 +4,7 @@
 //   손가락 두께: 손바닥 폭(wrist↔중지 MCP) × fingerWidthRatio
 import settings from "@/data/settings.json";
 import type { Side, TrackedHand } from "./types";
+import type { MotionEvent, Result } from "./motions/types";
 
 type Pt = { x: number; y: number };
 export type Trails = Partial<Record<Side, Pt[]>>;
@@ -24,6 +25,31 @@ export function handColor(side: Side) {
   return side === "Left" ? settings.colors.left : settings.colors.right;
 }
 
+const DANGER = "#FF5A5F", GRAY = "#8B8F98", ACCENT = "#FFA31A";
+
+function hexToRgb(hex: string) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function mix(a: string, b: string, t: number) {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  const c = A.map((v, i) => Math.round(v + (B[i] - v) * t));
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+/** 모션 점수(1=정확, 0=어긋남)에 따라 손 색을 바꾼다 — 채도가 빠지고 살짝 붉어짐 */
+export function feedbackColor(side: Side, score: number) {
+  const off = 1 - Math.max(0, Math.min(1, score));
+  return mix(mix(handColor(side), GRAY, off * 0.7), DANGER, off * 0.35);
+}
+
+export function resultColor(side: Side, r: Result) {
+  if (r === "good") return handColor(side);
+  if (r === "early" || r === "late" || r === "extra") return ACCENT;
+  return DANGER;
+}
+
 export type OverlayOptions = {
   mirror: boolean;
   silhouette: boolean;
@@ -31,6 +57,8 @@ export type OverlayOptions = {
   trails: Trails;
   /** 라벨 글꼴 패밀리 (Archivo 등 — body의 computed fontFamily를 넘긴다) */
   fontFamily?: string;
+  /** 모션 피드백: 손별 점수 + 최근 이벤트(링 펄스) */
+  feedback?: { scores: Partial<Record<Side, number>>; events: MotionEvent[]; now: number; pulseMs: number };
 };
 
 // 실루엣 합성용 오프스크린 캔버스 (프레임마다 재사용)
@@ -55,9 +83,8 @@ function buildPaths(px: (i: number) => Pt) {
  * 실루엣 한 개를 오프스크린에 그려 [채움 레이어, 외곽선 레이어]로 합성한다.
  * 외곽선은 "두꺼운 획 − (두께−2·outline) 획"으로 만들어 손가락 사이가 메워지지 않은 한 덩어리 링이 된다.
  */
-function drawSilhouette(ctx: CanvasRenderingContext2D, h: TrackedHand, mirror: boolean) {
+function drawSilhouette(ctx: CanvasRenderingContext2D, h: TrackedHand, mirror: boolean, color: string) {
   const { width: W, height: H } = ctx.canvas;
-  const color = handColor(h.side);
   const px = (i: number): Pt => ({ x: h.landmarks[i].x * W, y: h.landmarks[i].y * H });
   const palmWidth = Math.hypot(px(0).x - px(9).x, px(0).y - px(9).y);
   const thick = Math.max(6, palmWidth * O.fingerWidthRatio);
@@ -101,8 +128,9 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, hands: TrackedHand[],
   ctx.clearRect(0, 0, W, H);
 
   for (const h of hands) {
-    const color = handColor(h.side);
-    if (opts.silhouette) drawSilhouette(ctx, h, opts.mirror);
+    const score = opts.feedback?.scores[h.side];
+    const color = score === undefined ? handColor(h.side) : feedbackColor(h.side, score);
+    if (opts.silhouette) drawSilhouette(ctx, h, opts.mirror, color);
 
     if (opts.trail) {
       const t = (opts.trails[h.side] ??= []);
@@ -119,6 +147,24 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, hands: TrackedHand[],
   }
   if (!opts.trail) for (const k of Object.keys(opts.trails) as Side[]) opts.trails[k]!.length = 0;
 
+  // 링 펄스: 타격 지점에서 퍼지며 사라진다 (정확=손 색, 빠름/늦음=오렌지, 놓침/손 바뀜=빨강)
+  if (opts.feedback) {
+    const { events, now, pulseMs } = opts.feedback;
+    for (const e of events) {
+      if (e.x === undefined || e.y === undefined) continue;
+      const age = Math.min(1, (now - e.t) / pulseMs);
+      let x = e.x * W; const y = e.y * H;
+      if (opts.mirror) x = W - x;
+      const r = (H * 0.05) * (0.6 + age * 1.2);
+      ctx.save();
+      ctx.globalAlpha = (1 - age) * 0.9;
+      ctx.strokeStyle = resultColor(e.side, e.result);
+      ctx.lineWidth = 3 * (1 - age) + 1;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   // 제스처 라벨: 실루엣 위 labelOffset 지점, 14px/600 대문자 + rgba(0,0,0,.6) pill. 미러와 무관하게 정방향.
   const font = `600 14px ${opts.fontFamily || "system-ui, sans-serif"}`;
   for (const h of hands) {
@@ -132,7 +178,8 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, hands: TrackedHand[],
     const y = top - O.labelOffset;
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.beginPath(); ctx.roundRect(cx - pw / 2, y - ph / 2, pw, ph, ph / 2); ctx.fill();
-    ctx.fillStyle = handColor(h.side);
+    const score = opts.feedback?.scores[h.side];
+    ctx.fillStyle = score === undefined ? handColor(h.side) : feedbackColor(h.side, score);
     ctx.fillText(text, cx, y + 0.5);
   }
 }

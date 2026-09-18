@@ -5,10 +5,15 @@ import settings from "@/data/settings.json";
 import { createTracker, type Tracker } from "@/lib/tracking";
 import { drawOverlay, type Trails } from "@/lib/overlay";
 import { usePairing } from "@/lib/usePairing";
+import { createMotion, type MotionId } from "@/lib/motions";
+import type { Motion, MotionState } from "@/lib/motions/types";
+import { Metronome } from "@/lib/metronome";
+import drumCfg from "@/data/motions/drum.json";
 import type { SourceKind, TrackedHand } from "@/lib/types";
 import Stage from "./Stage";
 import ConnectScreen from "./ConnectScreen";
 import LiveBar from "./LiveBar";
+import BeatBar from "./BeatBar";
 
 type LogLine = { t: string; msg: string; err: boolean };
 type Camera = { deviceId: string; label: string };
@@ -24,6 +29,8 @@ export default function Viewer() {
   const trailsRef = useRef<Trails>({});
   const fpsRef = useRef({ frames: 0, t: performance.now(), fps: 0 });
   const optsRef = useRef({ mirror: true, silhouette: true, trail: false });
+  const motionRef = useRef<Motion | null>(null);
+  const metronomeRef = useRef<Metronome | null>(null);
   const fontRef = useRef<string>("");
 
   // --- state ---
@@ -38,6 +45,8 @@ export default function Viewer() {
   const [silhouette, setSilhouette] = useState(true);
   const [trail, setTrail] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
+  const [motionId, setMotionId] = useState<MotionId>("none");
+  const [motionState, setMotionState] = useState<MotionState | null>(null);
 
   useEffect(() => { optsRef.current = { mirror, silhouette, trail }; }, [mirror, silhouette, trail]);
   useEffect(() => { fontRef.current = getComputedStyle(document.body).fontFamily; }, []);
@@ -101,12 +110,25 @@ export default function Viewer() {
 
     const { mirror, silhouette, trail } = optsRef.current;
     const detected = tracker.detect(video, mirror);
+    const now = performance.now();
+
+    // 모션 판정 → 피드백 (실루엣 색, 링 펄스, 박자 바)
+    let feedback: Parameters<typeof drawOverlay>[2]["feedback"];
+    const motion = motionRef.current;
+    if (motion) {
+      const st = motion.update(detected, now);
+      metronomeRef.current?.schedule(motion.upcomingBeats(now, 150), now);
+      const scores: Record<string, number> = {};
+      for (const k of Object.keys(st.hands)) scores[k] = st.hands[k as keyof typeof st.hands]!.score;
+      feedback = { scores, events: st.events, now, pulseMs: drumCfg.feedback.pulseMs };
+      setMotionState(st);
+    }
+
     const ctx = canvas.getContext("2d");
-    if (ctx) drawOverlay(ctx, detected, { mirror, silhouette, trail, trails: trailsRef.current, fontFamily: fontRef.current });
+    if (ctx) drawOverlay(ctx, detected, { mirror, silhouette, trail, trails: trailsRef.current, fontFamily: fontRef.current, feedback });
 
     const f = fpsRef.current;
     f.frames++;
-    const now = performance.now();
     if (now - f.t >= 1000) { f.fps = f.frames; f.frames = 0; f.t = now; setFps(f.fps); }
 
     setHands(detected);
@@ -117,6 +139,24 @@ export default function Viewer() {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     lastTimeRef.current = -1;
+  }, []);
+
+  // --- 모션 시작/정지 (소리는 사용자 클릭 흐름 안에서만 시작 가능) ---
+  const startMotion = useCallback(async (id: MotionId) => {
+    motionRef.current?.stop();
+    motionRef.current = createMotion(id);
+    if (!motionRef.current) { metronomeRef.current?.stop(); setMotionState(null); return; }
+    metronomeRef.current ??= new Metronome();
+    try { await metronomeRef.current.start(); } catch (e) { log(`메트로놈 소리 실패: ${(e as Error).message}`, true); }
+    motionRef.current.start(performance.now());
+    log(`모션 시작: ${motionRef.current.name} (${drumCfg.bpm} bpm)`);
+  }, [log]);
+
+  const stopMotion = useCallback(() => {
+    motionRef.current?.stop();
+    motionRef.current = null;
+    metronomeRef.current?.stop();
+    setMotionState(null);
   }, []);
 
   // --- 소스 연결/해제 (로컬 카메라든 원격 스트림이든 여기로 들어옴) ---
@@ -133,20 +173,22 @@ export default function Viewer() {
     const s = track.getSettings();
     log(`소스 연결(${kind}): ${track.label || "unknown"} ${s.width}x${s.height}@${Math.round(s.frameRate || 0)}fps`);
     startLoop();
-  }, [log, startLoop]);
+    if (motionId !== "none") startMotion(motionId);
+  }, [log, startLoop, motionId, startMotion]);
 
   const stopSource = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     stopLoop();
+    stopMotion();
     const c = canvasRef.current;
     c?.getContext("2d")?.clearRect(0, 0, c.width, c.height);
     setSource("none");
     setHands([]);
     setStatus(<>모델 준비 완료 · <b className="text-accent">카메라를 시작하세요</b></>);
     log("소스 정지");
-  }, [log, stopLoop]);
+  }, [log, stopLoop, stopMotion]);
 
   const startCamera = useCallback(async (deviceId?: string) => {
     const { width, height } = settings.video;
@@ -164,7 +206,7 @@ export default function Viewer() {
     }
   }, [attachStream, log, refreshCameras]);
 
-  useEffect(() => () => { stopLoop(); streamRef.current?.getTracks().forEach((t) => t.stop()); }, [stopLoop]);
+  useEffect(() => () => { stopLoop(); stopMotion(); metronomeRef.current?.close(); streamRef.current?.getTracks().forEach((t) => t.stop()); }, [stopLoop, stopMotion]);
 
   const sourceRef = useRef<SourceKind>("none");
   sourceRef.current = source;
@@ -196,6 +238,14 @@ export default function Viewer() {
             onDisconnect={stopSource}
           />
         )}
+        {live && motionState && motionRef.current && (
+          <BeatBar
+            state={motionState}
+            name={motionRef.current.name}
+            onRestart={() => startMotion(motionId)}
+            onStop={stopMotion}
+          />
+        )}
       </div>
 
       {!live && (
@@ -206,6 +256,8 @@ export default function Viewer() {
           selectedCam={selectedCam}
           onSelectCam={setSelectedCam}
           onStartCamera={() => startCamera(selectedCam || undefined)}
+          motionId={motionId}
+          onMotionChange={setMotionId}
           pairCode={pairing.code}
           onNewCode={pairing.newCode}
           logs={logs}

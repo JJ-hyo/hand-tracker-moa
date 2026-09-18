@@ -1,0 +1,21 @@
+{
+  "id": "drum",
+  "name": "드럼",
+  "bpm": 90,
+  "countIn": 4,
+  "pattern": ["Right", "Left", "Right", "Left"],
+  "timing": { "goodMs": 60, "okMs": 130 },
+  "strike": {
+    "minVelocity": 0.6,
+    "minDropRatio": 0.35,
+    "debounceMs": 160,
+    "velocitySmoothing": 0.5
+  },
+  "feedback": {
+    "scoreByResult": { "good": 1, "early": 0.6, "late": 0.6, "wrong": 0, "miss": 0, "extra": 0.3 },
+    "scoreEase": 0.12,
+    "pulseMs": 320,
+    "historyLength": 8
+  },
+  "sound": { "clickHz": 1000, "accentHz": 1500, "countInHz": 700, "clickMs": 35, "gain": 0.25 }
+}
