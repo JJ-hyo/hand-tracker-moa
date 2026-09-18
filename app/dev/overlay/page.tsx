@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { drawOverlay } from "@/lib/overlay";
 import { classify } from "@/lib/gestures";
 import type { Landmark, TrackedHand } from "@/lib/types";
+import LiveBar from "@/components/LiveBar";
 
 // 카메라 없이 실루엣 오버레이를 확인하는 개발용 페이지 — /dev/overlay
 // 정규화 좌표(0~1)로 만든 가짜 손 두 개 (왼손: 펼침, 오른손: 핀치)
@@ -37,10 +38,14 @@ export default function OverlayDev() {
     const ctx = c.getContext("2d")!;
     drawOverlay(ctx, hands, { mirror: false, silhouette: true, trail: false, trails: {}, fontFamily: getComputedStyle(document.body).fontFamily });
   }, []);
+  const noop = () => {};
   return (
     <div className="min-h-screen bg-black p-4">
-      <div className="section-title mb-2">dev — overlay preview</div>
-      <canvas ref={ref} className="aspect-video w-full max-w-[960px] rounded-[14px] border border-line bg-[#1a1a1a]" />
+      <div className="section-title mb-2">dev — overlay + live bar preview</div>
+      <div className="relative aspect-video w-full max-w-[960px] overflow-hidden rounded-[14px] border border-line bg-[#1a1a1a]">
+        <canvas ref={ref} className="absolute inset-0 h-full w-full" />
+        <LiveBar source="remote" fps={30} hands={hands} mirror={false} silhouette trail={false} onMirror={noop} onSilhouette={noop} onTrail={noop} onDisconnect={noop} />
+      </div>
     </div>
   );
 }

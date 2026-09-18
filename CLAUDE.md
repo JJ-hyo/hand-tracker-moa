@@ -35,6 +35,7 @@ components/
   ConnectScreen.tsx     1단계: 연결 (PC 카메라 | 폰 페어링)
   LiveBar.tsx           2단계: 영상 위 상단 얇은 조작 바 (해제·fps·손 칩·토글)
   Stage.tsx             video + canvas 오버레이 (fill 모드면 화면 꽉 채움)
+  Brand.tsx             Logo / Motif — public/brand/ 에셋 래퍼
   PairingBox.tsx        코드 / QR / 접속 주소 UI (순수 표시)
   Sender.tsx            폰 송신 화면
 lib/
@@ -44,6 +45,7 @@ lib/
   overlay.ts            캔버스 그리기 — 뼈대 대신 손 실루엣(채움+외곽선+글로우) + 대문자 라벨
   peer.ts               PeerJS 송수신 (listenForDevice / sendToViewer)
   types.ts
+public/brand/          Motion Archive 로고 + 점무늬 모티프 PNG
 data/
   gestures.json         제스처 이름/이모지/임계값
   settings.json         영상·트래킹·오버레이·컬러·페어링 설정

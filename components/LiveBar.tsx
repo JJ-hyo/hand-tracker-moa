@@ -2,6 +2,7 @@
 
 import { handColor } from "@/lib/overlay";
 import type { SourceKind, TrackedHand } from "@/lib/types";
+import { Logo } from "./Brand";
 
 type Props = {
   source: SourceKind;
@@ -36,6 +37,10 @@ function Chip({ on, onClick, children, title }: { on: boolean; onClick: () => vo
 export default function LiveBar(p: Props) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-6 pt-2">
+      {/* 로고: 가운데 상단 고정 (좌우 클러스터와 무관하게 정중앙) */}
+      <div className="absolute left-1/2 top-2.5 -translate-x-1/2 opacity-90 drop-shadow-[0_1px_6px_rgba(0,0,0,.6)]">
+        <Logo width={96} />
+      </div>
       <div className="pointer-events-auto flex items-center gap-2">
         <button
           type="button"
