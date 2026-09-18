@@ -1,33 +1,41 @@
 @import "tailwindcss";
 
-/* design.md §2 컬러 토큰 → Tailwind 유틸 (bg-bg, text-muted, border-line, bg-accent …) */
+/* DESIGN.md 컬러 토큰 → Tailwind 유틸 (bg-bg, text-muted, border-line, bg-accent …) */
 @theme {
-  --color-bg: #0b0d10;
-  --color-panel: #14181d;
-  --color-line: #232a32;
-  --color-text: #e6e9ee;
-  --color-muted: #8a94a3;
-  --color-accent: #4fd1c5;
-  --color-accent-2: #f6ad55;
-  --color-danger: #fc8181;
-  --color-field: #0f1317;      /* 입력/보조 버튼/카드 배경 */
-  --color-on-accent: #062421;  /* accent 위 텍스트 */
+  --color-bg: #0e0f12;
+  --color-panel: #15171c;
+  --color-field: #0f1116;      /* 입력 / 보조 버튼 / 손 카드 — 패널보다 한 단계 어둡게 */
+  --color-line: #23262e;
+  --color-text: #f4f4f2;
+  --color-soft: #c6c9cf;       /* 본문 보조 */
+  --color-muted: #8b8f98;      /* 라벨, 로그 */
+  --color-dim: #5c626c;        /* 힌트, 푸터 */
+  --color-accent: #ffa31a;     /* 주요 버튼, 강조 (오렌지) */
+  --color-on-accent: #1a1205;  /* accent 위 텍스트 */
+  --color-hand-l: #2bd2ff;     /* 왼손 실루엣 (시안) */
+  --color-hand-r: #e8459b;     /* 오른손 실루엣 (마젠타) */
+  --color-danger: #ff5a5f;
+}
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+/* 글꼴은 layout.tsx에서 next/font로 로드 → CSS 변수로 전달 */
+@theme inline {
+  --font-sans: var(--font-archivo), "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, Menlo, Consolas, monospace;
 }
 
 html { color-scheme: dark; }
-body { @apply bg-bg text-text font-sans text-sm leading-normal; }
+body { @apply bg-bg text-text font-sans text-sm leading-normal antialiased; }
+::selection { background: var(--color-accent); color: var(--color-bg); }
 
-/* design.md §5 컴포넌트 */
+/* DESIGN.md 컴포넌트 */
 @layer components {
-  .panel { @apply bg-panel border border-line rounded-xl p-3.5 flex flex-col gap-3.5; }
-  .section-title { @apply text-xs uppercase tracking-[0.08em] text-muted font-semibold mb-1.5; }
-  .label { @apply block text-xs text-muted mb-1; }
-  .field { @apply w-full bg-field text-text border border-line rounded-lg px-2.5 py-2 text-sm; }
-  .btn { @apply w-full rounded-lg px-2.5 py-2 font-semibold bg-accent text-on-accent border border-transparent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed; }
+  .panel { @apply bg-panel border border-line rounded-[14px] p-[18px] flex flex-col gap-3; }
+  /* 섹션 라벨: 모노 11px 대문자 .12em */
+  .section-title { @apply font-mono text-[11px] uppercase tracking-[0.12em] text-muted; }
+  .label { @apply block text-xs text-muted mb-1.5; }
+  .field { @apply w-full bg-field text-text border border-line rounded-[10px] px-2.5 py-2.5 text-sm; }
+  .btn { @apply w-full rounded-[10px] p-2.5 text-sm font-semibold bg-accent text-on-accent border border-transparent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-secondary { @apply bg-field text-text border-line font-medium; }
-  .toggle { @apply flex items-center gap-2 text-[13px] cursor-pointer accent-accent; }
+  .toggle { @apply flex items-center gap-2 text-[13px] text-soft cursor-pointer accent-accent; }
   .err { @apply text-danger; }
 }

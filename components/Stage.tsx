@@ -13,7 +13,7 @@ type Props = {
 /** video + canvas 오버레이 (design.md §4) */
 export default function Stage({ videoRef, canvasRef, mirror, fill = false }: Props) {
   return (
-    <div className={fill ? "absolute inset-0 bg-black" : "relative aspect-video max-w-full overflow-hidden rounded-xl border border-line bg-black"}>
+    <div className={fill ? "absolute inset-0 bg-black" : "relative aspect-video max-w-full overflow-hidden rounded-[14px] border border-line bg-black"}>
       <video
         ref={videoRef}
         autoPlay

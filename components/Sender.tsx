@@ -86,7 +86,7 @@ export default function Sender() {
 
     set("PC에 연결 중…");
     connRef.current = await sendToViewer(c, stream, {
-      connected: () => { set("송신 중 ✓"); setConnected(true); },
+      connected: () => { set("송신 중"); setConnected(true); },
       close: () => { set("연결 종료"); cleanup(false); },
       error: (type) => { set(ERROR_TEXT[type] ?? `오류: ${type}`, true); if (type === "peer-unavailable") setBusy(false); },
     });
@@ -123,8 +123,8 @@ export default function Sender() {
           className="absolute inset-0 h-full w-full object-cover"
           style={{ transform: facing === "user" ? "scaleX(-1)" : "none" }}
         />
-        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1.5 text-xs">
-          상태: <b className={status.err ? "text-danger" : "text-accent"}>{status.text}</b>
+        <div className={`absolute left-3 top-3 rounded-full border bg-black/60 px-3 py-1.5 text-xs ${status.err ? "border-danger/35 text-danger" : connected ? "border-line text-text" : "border-line text-muted"}`}>
+          {status.text}{connected && <b className="ml-1 text-accent">✓</b>}
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export default function Sender() {
           <label className="label" htmlFor="code">연결 코드 (PC 화면에 표시된 {settings.peer.codeLength}자리)</label>
           <input
             id="code"
-            className="field p-3 text-center text-xl uppercase tracking-[0.2em]"
+            className="field p-3 text-center text-lg uppercase tracking-[0.2em]"
             maxLength={settings.peer.codeLength}
             autoComplete="off"
             autoCapitalize="characters"

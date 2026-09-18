@@ -27,7 +27,9 @@ app/
   page.tsx              PC 뷰어 (Viewer를 ssr:false로 로드)
   sender/page.tsx       폰 송신 (/sender?id=CODE)
   api/lan/route.ts      PC의 LAN 주소 반환 → QR에 넣을 폰 접속 주소
-  layout.tsx, globals.css   (globals.css에 DESIGN.md 토큰을 @theme로 등록)
+  dev/overlay/page.tsx  카메라 없이 실루엣 오버레이를 확인하는 개발용 페이지
+  layout.tsx            next/font로 Archivo + JetBrains Mono 로드
+  globals.css           DESIGN.md 컬러 토큰(@theme) + 컴포넌트 클래스
 components/
   Viewer.tsx            뷰어 상태 머신 — 소스 연결 / 렌더 루프 / 1·2단계 화면 전환
   ConnectScreen.tsx     1단계: 연결 (PC 카메라 | 폰 페어링)
@@ -39,7 +41,7 @@ lib/
   usePairing.ts         PeerJS 수신 대기 훅 — Viewer에 붙어 화면 전환에도 살아있음
   tracking.ts           HandLandmarker 로드 / detect 래퍼
   gestures.ts           제스처 분류 (순수 함수)
-  overlay.ts            캔버스 그리기
+  overlay.ts            캔버스 그리기 — 뼈대 대신 손 실루엣(채움+외곽선+글로우) + 대문자 라벨
   peer.ts               PeerJS 송수신 (listenForDevice / sendToViewer)
   types.ts
 data/
@@ -52,7 +54,7 @@ legacy/                 전환 전 바닐라 HTML (참고용)
 - `<video>`는 한 번만 마운트돼야 하므로 Stage는 항상 렌더하고 ①에서는 투명하게 숨김. PeerJS 대기도 같은 이유로 `usePairing`이 Viewer에 붙어 있음.
 - 영상 파이프라인은 **소스 → 트래킹 → 오버레이** 3층. 소스(로컬 카메라 / WebRTC 원격 / 나중에 글라스)만 바뀌고 `Viewer.attachStream()` 이후는 동일.
 - MediaPipe, PeerJS는 브라우저 전용 → `lib/`에서 동적 `import()`, 페이지는 `dynamic(..., { ssr: false })`.
-- 설정값을 바꿀 땐 코드가 아니라 `data/*.json`을 수정.
+- 설정값을 바꿀 땐 코드가 아니라 `data/*.json`을 수정. 실루엣 수치(채움 불투명도, 외곽선, 글로우, 손가락 두께)는 `settings.json > overlay`.
 
 ## 실행
 

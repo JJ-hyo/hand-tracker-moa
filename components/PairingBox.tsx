@@ -43,11 +43,11 @@ export default function PairingBox({ code, onNewCode }: Props) {
 
       {code && (
         <div className="text-center">
-          <div className="inline-block rounded-[10px] bg-white p-2">
+          <div className="inline-block rounded-[12px] bg-text p-2.5">
             <canvas ref={canvasRef} className="block" />
           </div>
-          <div className="mt-2 text-[26px] font-bold tracking-[0.15em]">{code}</div>
-          <div className="mt-1 text-xs text-muted">
+          <div className="mt-3 text-[30px] font-semibold tracking-[0.2em] tabular-nums">{code}</div>
+          <div className="mt-1.5 text-xs leading-relaxed text-muted">
             {isLocalhost(base) ? (
               <><span className="err">localhost 주소는 폰에서 열 수 없어요.</span> 아래에 PC의 IP(예: https://192.168.0.10:3000)를 넣으세요.</>
             ) : insecure ? (

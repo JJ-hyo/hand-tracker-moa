@@ -7,8 +7,17 @@
     "minTrackingConfidence": 0.5,
     "delegate": "GPU"
   },
-  "overlay": { "trailLength": 40, "lineWidth": 3, "landmarkRadius": 4 },
-  "colors": { "left": "#4fd1c5", "right": "#f6ad55" },
+  "overlay": {
+    "fillOpacity": 0.18,
+    "outlineWidth": 2,
+    "glowBlur": 18,
+    "fingerWidthRatio": 0.2,
+    "labelOffset": 24,
+    "trailLength": 40,
+    "trailWidth": 3,
+    "trailOpacity": 0.7
+  },
+  "colors": { "left": "#2BD2FF", "right": "#E8459B" },
   "peer": { "idPrefix": "ht-", "codeLength": 6, "codeChars": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" },
   "httpsPort": 3000
 }

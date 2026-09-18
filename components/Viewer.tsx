@@ -23,7 +23,8 @@ export default function Viewer() {
   const lastTimeRef = useRef(-1);
   const trailsRef = useRef<Trails>({});
   const fpsRef = useRef({ frames: 0, t: performance.now(), fps: 0 });
-  const optsRef = useRef({ mirror: true, skeleton: true, trail: false });
+  const optsRef = useRef({ mirror: true, silhouette: true, trail: false });
+  const fontRef = useRef<string>("");
 
   // --- state ---
   const [modelReady, setModelReady] = useState(false);
@@ -34,11 +35,12 @@ export default function Viewer() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selectedCam, setSelectedCam] = useState("");
   const [mirror, setMirror] = useState(true);
-  const [skeleton, setSkeleton] = useState(true);
+  const [silhouette, setSilhouette] = useState(true);
   const [trail, setTrail] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
 
-  useEffect(() => { optsRef.current = { mirror, skeleton, trail }; }, [mirror, skeleton, trail]);
+  useEffect(() => { optsRef.current = { mirror, silhouette, trail }; }, [mirror, silhouette, trail]);
+  useEffect(() => { fontRef.current = getComputedStyle(document.body).fontFamily; }, []);
 
   const log = useCallback((msg: string, err = false) => {
     setLogs((l) => [{ t: new Date().toLocaleTimeString(), msg, err }, ...l].slice(0, 100));
@@ -97,10 +99,10 @@ export default function Viewer() {
       canvas.height = video.videoHeight;
     }
 
-    const { mirror, skeleton, trail } = optsRef.current;
+    const { mirror, silhouette, trail } = optsRef.current;
     const detected = tracker.detect(video, mirror);
     const ctx = canvas.getContext("2d");
-    if (ctx) drawOverlay(ctx, detected, tracker.connections, { mirror, skeleton, trail, trails: trailsRef.current });
+    if (ctx) drawOverlay(ctx, detected, { mirror, silhouette, trail, trails: trailsRef.current, fontFamily: fontRef.current });
 
     const f = fpsRef.current;
     f.frames++;
@@ -186,10 +188,10 @@ export default function Viewer() {
             fps={fps}
             hands={hands}
             mirror={mirror}
-            skeleton={skeleton}
+            silhouette={silhouette}
             trail={trail}
             onMirror={setMirror}
-            onSkeleton={setSkeleton}
+            onSilhouette={setSilhouette}
             onTrail={setTrail}
             onDisconnect={stopSource}
           />
