@@ -16,7 +16,7 @@
 - 배포 (Vercel 등) — 로컬 `npm run dev`만
 - DB / 백엔드 API 연동 — JSON 파일로 대체
 - 인증, 계정
-- 라이트 테마 — 다크 고정 (`design.md` 참고)
+- 라이트 테마 — 다크 고정 (`DESIGN.md` 참고)
 
 ## 현재 상태 (2026-09-19)
 
@@ -27,7 +27,7 @@ app/
   page.tsx              PC 뷰어 (Viewer를 ssr:false로 로드)
   sender/page.tsx       폰 송신 (/sender?id=CODE)
   api/lan/route.ts      PC의 LAN 주소 반환 → QR에 넣을 폰 접속 주소
-  layout.tsx, globals.css   (globals.css에 design.md 토큰을 @theme로 등록)
+  layout.tsx, globals.css   (globals.css에 DESIGN.md 토큰을 @theme로 등록)
 components/
   Viewer.tsx            뷰어 상태 머신 — 소스 연결 / 렌더 루프 / 1·2단계 화면 전환
   ConnectScreen.tsx     1단계: 연결 (PC 카메라 | 폰 페어링)
@@ -67,7 +67,7 @@ npm run typecheck
 
 ## 코딩 규칙
 
-- UI 색/간격/타이포는 `design.md` 토큰을 따른다. Tailwind 설정에 토큰을 등록해서 쓰고, 임의 hex 남발 금지.
+- UI 색/간격/타이포는 `DESIGN.md` 토큰을 따른다. Tailwind 설정에 토큰을 등록해서 쓰고, 임의 hex 남발 금지.
 - 제스처 분류는 순수 함수로 두고 UI와 분리 (테스트 가능하게).
 - 한국어 UI, 해요체. 로그/콘솔은 원어 그대로 가능.
 - 새 의존성은 꼭 필요할 때만. 현재 필수: `next`, `react`, `typescript`, `tailwindcss`, `@mediapipe/tasks-vision`, `peerjs`, `qrcode`.
